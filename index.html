@@ -389,6 +389,17 @@
 
   if (GEMINI_API_KEY_HARDCODED) {
     $keyRow.style.display = 'none';
+  } else {
+    // 尝试从本地存储读回上次填过的 key（部署到实际网页后才生效，
+    // 在 Claude 内的预览环境里 localStorage 可能被禁用，会被下面的 try/catch 安静地忽略）
+    try {
+      const saved = localStorage.getItem('sp_gemini_key');
+      if (saved) $key.value = saved;
+    } catch (e) { /* 预览环境不支持本地存储，忽略即可 */ }
+
+    $key.addEventListener('change', () => {
+      try { localStorage.setItem('sp_gemini_key', $key.value.trim()); } catch (e) { /* 忽略 */ }
+    });
   }
 
   const RESPONSE_SCHEMA = {
