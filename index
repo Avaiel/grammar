@@ -1,0 +1,599 @@
+<!-- Sentence Diagram — English structure & part-of-speech breakdown tool -->
+<style>
+  :root {
+    --paper: #f7f4ec;
+    --paper-line: #e3ddc9;
+    --ink: #2b2620;
+    --ink-soft: #6b6459;
+    --ink-blue: #2f4a6b;
+    --ink-blue-soft: #5b7595;
+    --red-pen: #b8451f;
+    --border: #d9d2b8;
+
+    --pos-noun: #a6791f;
+    --pos-verb: #b8451f;
+    --pos-adj: #2f6f5a;
+    --pos-adv: #6b4e9e;
+    --pos-pron: #a3556a;
+    --pos-prep: #3d6ea5;
+    --pos-conj: #6b6459;
+    --pos-det: #8a8060;
+    --pos-other: #9a9483;
+
+    --font-display: 'Source Serif Pro', Georgia, 'Songti SC', serif;
+    --font-body: 'Inter', -apple-system, 'PingFang SC', sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body, .sp-root {
+    margin: 0;
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-body);
+  }
+
+  .sp-root {
+    background-image:
+      linear-gradient(var(--paper-line) 1px, transparent 1px);
+    background-size: 100% 32px;
+    background-color: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 36px 40px 44px;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  .sp-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-blue-soft);
+    margin-bottom: 6px;
+  }
+
+  .sp-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .sp-sub {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-bottom: 26px;
+  }
+
+  .sp-input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .sp-input {
+    flex: 1;
+    font-family: var(--font-display);
+    font-size: 17px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: #fffdf8;
+    color: var(--ink);
+  }
+  .sp-input:focus {
+    outline: none;
+    border-color: var(--ink-blue-soft);
+    box-shadow: 0 0 0 3px rgba(47,74,107,0.08);
+  }
+
+  .sp-btn {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: var(--ink-blue);
+    color: #fdfbf4;
+    border: none;
+    border-radius: 3px;
+    padding: 0 20px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .sp-btn:hover { background: #24374e; }
+  .sp-btn:disabled { background: #a9a293; cursor: default; }
+
+  .sp-examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 30px;
+  }
+  .sp-example {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-blue-soft);
+    border: 1px solid var(--paper-line);
+    background: #fffdf8;
+    border-radius: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .sp-example:hover { border-color: var(--ink-blue-soft); color: var(--ink-blue); }
+
+  .sp-status {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 10px 0 20px;
+    min-height: 16px;
+  }
+
+  .sp-error {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--red-pen);
+    margin: 10px 0 20px;
+  }
+
+  /* --- sentence render --- */
+  .sp-sentence-card {
+    background: #fffdf8;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 28px 26px 22px;
+    margin-bottom: 26px;
+  }
+
+  .sp-sentence {
+    font-family: var(--font-display);
+    font-size: 22px;
+    line-height: 2.1;
+    margin-bottom: 6px;
+  }
+
+  .sp-word {
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    padding: 1px 1px;
+    transition: background 0.1s ease;
+    position: relative;
+  }
+  .sp-word:hover { background: rgba(47,74,107,0.06); }
+  .sp-word.active { background: rgba(47,74,107,0.1); }
+
+  .sp-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--paper-line);
+  }
+  .sp-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-soft);
+  }
+  .sp-legend-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+
+  /* --- word detail panel --- */
+  .sp-detail {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--paper-line);
+    min-height: 44px;
+  }
+  .sp-detail-empty {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  .sp-detail-word {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .sp-detail-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+
+  /* --- structure section --- */
+  .sp-section-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-blue-soft);
+    margin-bottom: 10px;
+  }
+
+  .sp-formula {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    color: var(--ink-blue);
+    background: #eef2ea;
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 3px;
+    margin-bottom: 20px;
+    letter-spacing: 0.02em;
+  }
+
+  .sp-clauses {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .sp-clause {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 14px;
+    align-items: start;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--paper-line);
+  }
+  .sp-clause:last-child { border-bottom: none; }
+  .sp-clause-tag {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: #fff;
+    background: var(--ink-blue);
+    border-radius: 3px;
+    padding: 3px 6px;
+    text-align: center;
+    height: fit-content;
+    white-space: nowrap;
+  }
+  .sp-clause-tag.sub { background: var(--red-pen); }
+  .sp-clause-text {
+    font-family: var(--font-display);
+    font-size: 15px;
+    color: var(--ink);
+    margin-bottom: 3px;
+  }
+  .sp-clause-note {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+
+  .sp-summary {
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fffdf8;
+    border-left: 3px solid var(--red-pen);
+    padding: 12px 16px;
+    border-radius: 0 3px 3px 0;
+  }
+
+  .sp-footer-note {
+    margin-top: 24px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-soft);
+    opacity: 0.75;
+  }
+
+  .sp-key-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 18px;
+    padding: 10px 12px;
+    background: #fbf5e6;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+  .sp-key-row label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .sp-key-input {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: #fffdf8;
+    color: var(--ink);
+  }
+  .sp-key-hint {
+    font-size: 10.5px;
+    color: var(--ink-soft);
+  }
+
+  @media (max-width: 560px) {
+    .sp-root { padding: 24px 18px 32px; }
+    .sp-sentence { font-size: 18px; line-height: 2; }
+    .sp-clause { grid-template-columns: 70px 1fr; }
+  }
+</style>
+
+<div class="sp-root">
+  <div class="sp-eyebrow">Sentence Diagram</div>
+  <h1 class="sp-title">英语句子结构拆解</h1>
+  <div class="sp-sub">输入一句英文，逐词标注词性，并拆出句子主干与从句结构</div>
+
+  <div class="sp-key-row" id="sp-key-row">
+    <label for="sp-key">Gemini Key</label>
+    <input class="sp-key-input" id="sp-key" type="password" placeholder="粘贴你的 Gemini API Key（只保存在本次浏览，不会上传/存储）" />
+    <span class="sp-key-hint">在 Google AI Studio 免费获取</span>
+  </div>
+
+  <div class="sp-input-row">
+    <input class="sp-input" id="sp-input" type="text"
+      placeholder="e.g. Although she was tired, she finished the translation before the deadline." />
+    <button class="sp-btn" id="sp-btn">解析 Analyze</button>
+  </div>
+
+  <div class="sp-examples" id="sp-examples"></div>
+  <div class="sp-status" id="sp-status"></div>
+  <div class="sp-error" id="sp-error"></div>
+
+  <div id="sp-result"></div>
+
+  <div class="sp-footer-note">词性标注按语境判断，同一词在不同句子中可能标注不同 · 点击句中单词查看解释</div>
+</div>
+
+<script>
+(function () {
+  const posMeta = {
+    noun:  { zh: '名词',  color: 'var(--pos-noun)' },
+    verb:  { zh: '动词',  color: 'var(--pos-verb)' },
+    adj:   { zh: '形容词', color: 'var(--pos-adj)' },
+    adv:   { zh: '副词',  color: 'var(--pos-adv)' },
+    pron:  { zh: '代词',  color: 'var(--pos-pron)' },
+    prep:  { zh: '介词',  color: 'var(--pos-prep)' },
+    conj:  { zh: '连词',  color: 'var(--pos-conj)' },
+    det:   { zh: '限定词', color: 'var(--pos-det)' },
+    other: { zh: '其他',  color: 'var(--pos-other)' }
+  };
+
+  const examples = [
+    "Although she was tired, she finished the translation before the deadline.",
+    "The novel that we localized last month sold surprisingly well overseas.",
+    "Whoever finishes the review first gets to pick the next project."
+  ];
+
+  // 部署到 GitHub 前，也可以直接把 key 写死在这里（写死后上面的输入框会自动隐藏）：
+  const GEMINI_API_KEY_HARDCODED = '';
+
+  const $input = document.getElementById('sp-input');
+  const $btn = document.getElementById('sp-btn');
+  const $status = document.getElementById('sp-status');
+  const $error = document.getElementById('sp-error');
+  const $result = document.getElementById('sp-result');
+  const $examples = document.getElementById('sp-examples');
+  const $keyRow = document.getElementById('sp-key-row');
+  const $key = document.getElementById('sp-key');
+
+  if (GEMINI_API_KEY_HARDCODED) {
+    $keyRow.style.display = 'none';
+  }
+
+  const RESPONSE_SCHEMA = {
+    type: 'OBJECT',
+    properties: {
+      w: {
+        type: 'ARRAY',
+        items: {
+          type: 'OBJECT',
+          properties: {
+            t: { type: 'STRING' },
+            p: { type: 'STRING', enum: ['noun','verb','adj','adv','pron','prep','conj','det','other'] },
+            e: { type: 'STRING' }
+          },
+          required: ['t','p','e']
+        }
+      },
+      f: { type: 'STRING' },
+      c: {
+        type: 'ARRAY',
+        items: {
+          type: 'OBJECT',
+          properties: {
+            tag: { type: 'STRING' },
+            sub: { type: 'BOOLEAN' },
+            s: { type: 'INTEGER' },
+            en: { type: 'INTEGER' },
+            n: { type: 'STRING' }
+          },
+          required: ['tag','sub','s','en','n']
+        }
+      },
+      sum: { type: 'STRING' }
+    },
+    required: ['w','f','c','sum']
+  };
+
+  examples.forEach(ex => {
+    const el = document.createElement('div');
+    el.className = 'sp-example';
+    el.textContent = ex.length > 46 ? ex.slice(0, 46) + '…' : ex;
+    el.title = ex;
+    el.onclick = () => { $input.value = ex; analyze(); };
+    $examples.appendChild(el);
+  });
+
+  $btn.onclick = analyze;
+  $input.addEventListener('keydown', e => { if (e.key === 'Enter') analyze(); });
+
+  async function analyze() {
+    const sentence = $input.value.trim();
+    if (!sentence) return;
+
+    const apiKey = GEMINI_API_KEY_HARDCODED || $key.value.trim();
+    if (!apiKey) {
+      $error.textContent = '先粘贴一个 Gemini API Key（去 Google AI Studio 免费领一个）';
+      return;
+    }
+
+    $error.textContent = '';
+    $result.innerHTML = '';
+    $status.textContent = '解析中 · analyzing…';
+    $btn.disabled = true;
+
+    const systemPrompt =
+      'You are a precise English grammar analyzer for a Chinese-English translator. ' +
+      'Given one English sentence, analyze it into the required JSON schema. ' +
+      'w = every token in order (including punctuation, pos "other", e "标点"); t = exact token text; e = short Chinese note (<=10 chars) on this word\'s grammatical role in THIS sentence. ' +
+      'f = short structure formula, e.g. "状语从句 + 主句(主谓宾)". ' +
+      'c = clause list; s/en = start/end index (inclusive, into the w array) of that clause\'s words; tag = short Chinese label like "主句" or "状语从句"; n = one short Chinese sentence (<=40 chars) on that clause\'s function. ' +
+      'sum = 1-2 short Chinese sentences (<=60 chars each) summarizing the structure, aimed at someone doing Chinese-English translation work. Keep every string short and specific to this sentence.';
+
+    let rawText = '';
+    try {
+      const response = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(apiKey),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [ { role: 'user', parts: [ { text: sentence } ] } ],
+            systemInstruction: { parts: [ { text: systemPrompt } ] },
+            generationConfig: {
+              maxOutputTokens: 2000,
+              responseMimeType: 'application/json',
+              responseSchema: RESPONSE_SCHEMA
+            }
+          })
+        }
+      );
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message || 'API error');
+
+      const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+      rawText = parts.map(p => p.text || '').join('');
+      if (!rawText) throw new Error('empty response');
+
+      const parsed = parseModelJson(rawText);
+      render(parsed);
+      $status.textContent = '';
+    } catch (err) {
+      console.error('analyze failed:', err, '\nraw model output:\n', rawText);
+      $error.textContent = '解析失败：' + (err.message || '请重试一次');
+      $status.textContent = '';
+    } finally {
+      $btn.disabled = false;
+    }
+  }
+
+  function parseModelJson(text) {
+    let clean = text.trim()
+      .replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '')
+      .trim();
+    try {
+      return JSON.parse(clean);
+    } catch (e) {
+      // fallback: the response may have been cut off mid-object (max_tokens limit)
+      // or have trailing junk. Try trimming to the last plausible closing point.
+      const lastBrace = clean.lastIndexOf('}');
+      if (lastBrace > -1) {
+        let attempt = clean.slice(0, lastBrace + 1);
+        // balance closing brackets/braces if truncated mid-array
+        try { return JSON.parse(attempt); } catch (e2) { /* fall through */ }
+      }
+      throw e;
+    }
+  }
+
+  function render(data) {
+    const words = data.w || [];
+    const clauses = data.c || [];
+
+    // legend of pos types actually present
+    const usedPos = [...new Set(words.map(w => w.p))].filter(p => posMeta[p]);
+
+    let html = '';
+
+    // sentence card
+    html += '<div class="sp-sentence-card">';
+    html += '<div class="sp-sentence" id="sp-sentence">';
+    words.forEach((w, i) => {
+      const meta = posMeta[w.p] || posMeta.other;
+      html += `<span class="sp-word" data-i="${i}" style="color:${meta.color}">${escapeHtml(w.t)}</span> `;
+    });
+    html += '</div>';
+
+    html += '<div class="sp-legend">';
+    usedPos.forEach(p => {
+      html += `<div class="sp-legend-item"><span class="sp-legend-dot" style="background:${posMeta[p].color}"></span>${posMeta[p].zh}</div>`;
+    });
+    html += '</div>';
+
+    html += '<div class="sp-detail" id="sp-detail"><div class="sp-detail-empty">点击句中任意单词，查看它的词性与作用</div></div>';
+    html += '</div>';
+
+    // structure
+    if (data.f) {
+      html += `<div class="sp-formula">${escapeHtml(data.f)}</div>`;
+    }
+
+    if (clauses.length) {
+      html += '<div class="sp-section-label">句子结构 · Clause Breakdown</div>';
+      html += '<div class="sp-clauses">';
+      clauses.forEach(c => {
+        const s = Math.max(0, c.s || 0);
+        const en = Math.min(words.length - 1, c.en != null ? c.en : s);
+        const clauseText = words.slice(s, en + 1).map(w => w.t).join(' ');
+        html += '<div class="sp-clause">';
+        html += `<div class="sp-clause-tag${c.sub ? ' sub' : ''}">${escapeHtml(c.tag || '')}</div>`;
+        html += '<div>';
+        html += `<div class="sp-clause-text">${escapeHtml(clauseText)}</div>`;
+        html += `<div class="sp-clause-note">${escapeHtml(c.n || '')}</div>`;
+        html += '</div></div>';
+      });
+      html += '</div>';
+    }
+
+    if (data.sum) {
+      html += `<div class="sp-summary">${escapeHtml(data.sum)}</div>`;
+    }
+
+    $result.innerHTML = html;
+
+    // wire up word clicks
+    const $sentence = document.getElementById('sp-sentence');
+    const $detail = document.getElementById('sp-detail');
+    $sentence.querySelectorAll('.sp-word').forEach(el => {
+      el.addEventListener('click', () => {
+        $sentence.querySelectorAll('.sp-word').forEach(w => w.classList.remove('active'));
+        el.classList.add('active');
+        const i = +el.dataset.i;
+        const w = words[i];
+        const meta = posMeta[w.p] || posMeta.other;
+        $detail.innerHTML =
+          `<div class="sp-detail-word" style="color:${meta.color}">${escapeHtml(w.t)} · ${meta.zh}</div>` +
+          `<div class="sp-detail-text">${escapeHtml(w.e || '')}</div>`;
+      });
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+})();
+</script>
