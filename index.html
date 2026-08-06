@@ -80,7 +80,59 @@
   .sp-input-row {
     display: flex;
     gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .sp-action-row {
+    display: flex;
+    gap: 10px;
     margin-bottom: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .sp-lang-select {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 0 10px;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: #fffdf8;
+    color: var(--ink);
+  }
+  .sp-lang-arrow {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+
+  .sp-btn-alt {
+    background: var(--red-pen);
+  }
+  .sp-btn-alt:hover { background: #93381a; }
+  .sp-btn-alt:disabled { background: #a9a293; }
+
+  .sp-translate-card {
+    background: #fffdf8;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px 22px;
+    margin-bottom: 26px;
+  }
+  .sp-translate-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-blue-soft);
+    margin-bottom: 10px;
+    letter-spacing: 0.04em;
+  }
+  .sp-translate-text {
+    font-family: var(--font-display);
+    font-size: 19px;
+    line-height: 1.7;
+    color: var(--ink);
   }
 
   .sp-input {
@@ -219,6 +271,81 @@
     color: var(--ink);
   }
 
+  .sp-dict-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--paper-line);
+  }
+  .sp-dict-source {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+  .sp-dict-phonetic {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--ink-blue-soft);
+    margin-bottom: 8px;
+  }
+  .sp-dict-pos {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 10px 0 4px;
+  }
+  .sp-dict-def {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--ink);
+    margin-bottom: 4px;
+    padding-left: 14px;
+    position: relative;
+  }
+  .sp-dict-def::before {
+    content: '·';
+    position: absolute;
+    left: 2px;
+    color: var(--ink-soft);
+  }
+  .sp-dict-example {
+    font-size: 12.5px;
+    font-style: italic;
+    color: var(--ink-soft);
+    margin: 2px 0 6px 14px;
+  }
+  .sp-dict-loading, .sp-dict-empty {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  .sp-web-btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--red-pen);
+    background: none;
+    border: 1px solid var(--red-pen);
+    border-radius: 12px;
+    padding: 4px 11px;
+    margin-top: 10px;
+    cursor: pointer;
+  }
+  .sp-web-btn:hover { background: rgba(184,69,31,0.08); }
+  .sp-web-btn:disabled { opacity: 0.5; cursor: default; }
+  .sp-web-note {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink);
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: #f7f2e4;
+    border-radius: 3px;
+  }
+
   /* --- structure section --- */
   .sp-section-label {
     font-family: var(--font-mono);
@@ -352,16 +479,23 @@
   <div class="sp-input-row">
     <input class="sp-input" id="sp-input" type="text"
       placeholder="e.g. Although she was tired, she finished the translation before the deadline." />
-    <button class="sp-btn" id="sp-btn">解析 Analyze</button>
+  </div>
+
+  <div class="sp-action-row">
+    <button class="sp-btn" id="sp-btn">解析结构 Analyze</button>
+    <span class="sp-lang-arrow">译成 →</span>
+    <select class="sp-lang-select" id="sp-target-lang"></select>
+    <button class="sp-btn sp-btn-alt" id="sp-translate-btn">翻译 Translate</button>
   </div>
 
   <div class="sp-examples" id="sp-examples"></div>
   <div class="sp-status" id="sp-status"></div>
   <div class="sp-error" id="sp-error"></div>
 
+  <div id="sp-translate-result"></div>
   <div id="sp-result"></div>
 
-  <div class="sp-footer-note">词性标注按语境判断，同一词在不同句子中可能标注不同 · 点击句中单词查看解释</div>
+  <div class="sp-footer-note">词性标注按语境判断，同一词在不同句子中可能标注不同 · 点击句中单词查看解释 · 翻译会自动识别输入语言</div>
 </div>
 
 <script>
@@ -454,6 +588,121 @@
     el.onclick = () => { $input.value = ex; analyze(); };
     $examples.appendChild(el);
   });
+
+  const LANGUAGES = [
+    { code: 'zh', name: '中文' },
+    { code: 'en', name: 'English' },
+    { code: 'ja', name: '日本語' },
+    { code: 'ko', name: '한국어' },
+    { code: 'fr', name: 'Français' },
+    { code: 'de', name: 'Deutsch' },
+    { code: 'es', name: 'Español' },
+    { code: 'ru', name: 'Русский' },
+    { code: 'pt', name: 'Português' },
+    { code: 'vi', name: 'Tiếng Việt' },
+    { code: 'th', name: 'ไทย' },
+    { code: 'ar', name: 'العربية' }
+  ];
+  const $targetLang = document.getElementById('sp-target-lang');
+  const $translateBtn = document.getElementById('sp-translate-btn');
+  const $translateResult = document.getElementById('sp-translate-result');
+  LANGUAGES.forEach(l => $targetLang.add(new Option(l.name, l.code)));
+  try {
+    const savedLang = localStorage.getItem('sp_target_lang');
+    if (savedLang && LANGUAGES.some(l => l.code === savedLang)) $targetLang.value = savedLang;
+    else $targetLang.value = 'zh';
+  } catch (e) { $targetLang.value = 'zh'; }
+  $targetLang.addEventListener('change', () => {
+    try { localStorage.setItem('sp_target_lang', $targetLang.value); } catch (e) { /* 忽略 */ }
+  });
+
+  const TRANSLATE_SCHEMA = {
+    type: 'OBJECT',
+    properties: {
+      detected: { type: 'STRING' },
+      translation: { type: 'STRING' }
+    },
+    required: ['detected', 'translation']
+  };
+
+  $translateBtn.onclick = translate;
+
+  async function translate() {
+    const sentence = $input.value.trim();
+    if (!sentence) return;
+
+    const apiKey = GEMINI_API_KEY_HARDCODED || $key.value.trim();
+    if (!apiKey) {
+      $error.textContent = '先粘贴一个 Gemini API Key（去 Google AI Studio 免费领一个）';
+      return;
+    }
+
+    const targetName = (LANGUAGES.find(l => l.code === $targetLang.value) || LANGUAGES[0]).name;
+
+    $error.textContent = '';
+    $translateResult.innerHTML = '';
+    $status.textContent = '翻译中 · translating…';
+    $translateBtn.disabled = true;
+
+    const systemPrompt =
+      'You are a precise translator. Detect the source language of the given text automatically, ' +
+      `then translate it into ${targetName}. ` +
+      'detected = the name of the detected source language, written in Chinese (e.g. "英语", "日语", "法语"). ' +
+      'translation = a natural, accurate translation into the target language, preserving tone and meaning. ' +
+      'If the text is already in the target language, still fill detected with its actual language and translation with a lightly polished version of the same text.';
+
+    let rawText = '';
+    try {
+      const response = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + encodeURIComponent(apiKey),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [ { role: 'user', parts: [ { text: sentence } ] } ],
+            systemInstruction: { parts: [ { text: systemPrompt } ] },
+            generationConfig: {
+              maxOutputTokens: 2000,
+              responseMimeType: 'application/json',
+              responseSchema: TRANSLATE_SCHEMA,
+              thinkingConfig: { thinkingLevel: 'low' }
+            }
+          })
+        }
+      );
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message || 'API error');
+
+      const candidate = data.candidates && data.candidates[0];
+      const parts = (candidate && candidate.content && candidate.content.parts) || [];
+      rawText = parts.map(p => p.text || '').join('');
+      if (!rawText) {
+        if (candidate && candidate.finishReason === 'MAX_TOKENS') {
+          throw new Error('句子太长，被截断了，试试拆短一点');
+        }
+        throw new Error('empty response');
+      }
+
+      const parsed = parseModelJson(rawText);
+      renderTranslation(parsed, targetName);
+      $status.textContent = '';
+    } catch (err) {
+      console.error('translate failed:', err, '\nraw model output:\n', rawText);
+      $error.textContent = '翻译失败：' + (err.message || '请重试一次');
+      $status.textContent = '';
+    } finally {
+      $translateBtn.disabled = false;
+    }
+  }
+
+  function renderTranslation(data, targetName) {
+    let html = '<div class="sp-translate-card">';
+    html += `<div class="sp-translate-meta">检测到 ${escapeHtml(data.detected || '')} · 译为 ${escapeHtml(targetName)}</div>`;
+    html += `<div class="sp-translate-text">${escapeHtml(data.translation || '')}</div>`;
+    html += '</div>';
+    $translateResult.innerHTML = html;
+  }
 
   $btn.onclick = analyze;
   $input.addEventListener('keydown', e => { if (e.key === 'Enter') analyze(); });
@@ -614,11 +863,109 @@
         const i = +el.dataset.i;
         const w = words[i];
         const meta = posMeta[w.p] || posMeta.other;
+
         $detail.innerHTML =
           `<div class="sp-detail-word" style="color:${meta.color}">${escapeHtml(w.t)} · ${meta.zh}</div>` +
-          `<div class="sp-detail-text">${escapeHtml(w.e || '')}</div>`;
+          `<div class="sp-detail-text">${escapeHtml(w.e || '')}</div>` +
+          '<div class="sp-dict-section" id="sp-dict-section"></div>';
+
+        if (w.p !== 'other') {
+          loadDictionaryEntry(w.t);
+        }
       });
     });
+  }
+
+  // 免费词典 API（api.dictionaryapi.dev，数据主要来自 Wiktionary），
+  // 不是牛津/柯林斯——那两家的数据是付费授权的，个人小工具拿不到。
+  // 这里给的是可信的开源词典释义，外加按需查询的"网络/口语用法"（由模型生成，会标注清楚来源）。
+  const dictCache = {};
+  async function loadDictionaryEntry(word) {
+    const $section = document.getElementById('sp-dict-section');
+    if (!$section) return;
+    const key = word.toLowerCase().replace(/[^a-z'-]/g, '');
+    if (!key) { $section.innerHTML = ''; return; }
+
+    $section.innerHTML = '<div class="sp-dict-loading">词典查询中…</div>';
+
+    if (dictCache[key]) {
+      renderDictSection($section, dictCache[key], word);
+      return;
+    }
+
+    try {
+      const res = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(key));
+      if (!res.ok) throw new Error('not found');
+      const data = await res.json();
+      dictCache[key] = data;
+      renderDictSection($section, data, word);
+    } catch (e) {
+      dictCache[key] = null;
+      renderDictSection($section, null, word);
+    }
+  }
+
+  function renderDictSection($section, entries, word) {
+    let html = '<div class="sp-dict-source">词典释义 · Free Dictionary API</div>';
+
+    if (entries && entries.length) {
+      const entry = entries[0];
+      const phonetic = entry.phonetic || (entry.phonetics || []).map(p => p.text).find(Boolean);
+      if (phonetic) html += `<div class="sp-dict-phonetic">${escapeHtml(phonetic)}</div>`;
+
+      (entry.meanings || []).slice(0, 3).forEach(m => {
+        html += `<div class="sp-dict-pos">${escapeHtml(m.partOfSpeech || '')}</div>`;
+        (m.definitions || []).slice(0, 2).forEach(d => {
+          html += `<div class="sp-dict-def">${escapeHtml(d.definition || '')}</div>`;
+          if (d.example) html += `<div class="sp-dict-example">"${escapeHtml(d.example)}"</div>`;
+        });
+      });
+    } else {
+      html += '<div class="sp-dict-empty">词典未收录这个词形（可能是变形、缩写或专有名词）</div>';
+    }
+
+    html += `<button class="sp-web-btn" id="sp-web-btn">查网络 / 口语释义</button><div id="sp-web-note"></div>`;
+    $section.innerHTML = html;
+
+    document.getElementById('sp-web-btn').onclick = () => loadWebUsage(word);
+  }
+
+  async function loadWebUsage(word) {
+    const $btnWeb = document.getElementById('sp-web-btn');
+    const $note = document.getElementById('sp-web-note');
+    const apiKey = GEMINI_API_KEY_HARDCODED || $key.value.trim();
+    if (!apiKey) { $note.innerHTML = '<div class="sp-dict-empty">需要先填 Gemini Key</div>'; return; }
+
+    $btnWeb.disabled = true;
+    $note.innerHTML = '<div class="sp-dict-loading">查询中…</div>';
+
+    const prompt =
+      `The English word/phrase is: "${word}". ` +
+      'Briefly explain, in Chinese, any notable informal, slang, internet, or pop-culture usage of this word that a standard dictionary might miss (e.g. meme usage, internet slang meaning, recent shifted usage). ' +
+      'If there is genuinely no notable informal/internet usage beyond its standard dictionary meaning, say so plainly in Chinese instead of inventing one. Keep it to 1-2 short sentences.';
+
+    try {
+      const response = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + encodeURIComponent(apiKey),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [ { role: 'user', parts: [ { text: prompt } ] } ],
+            generationConfig: { maxOutputTokens: 400, thinkingConfig: { thinkingLevel: 'low' } }
+          })
+        }
+      );
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message || 'API error');
+      const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+      const text = parts.map(p => p.text || '').join('').trim();
+      $note.innerHTML = `<div class="sp-web-note">${escapeHtml(text || '（未获得结果，请重试）')}</div>`;
+    } catch (err) {
+      $note.innerHTML = `<div class="sp-dict-empty">查询失败：${escapeHtml(err.message || '请重试')}</div>`;
+    } finally {
+      $btnWeb.disabled = false;
+    }
   }
 
   function escapeHtml(s) {
