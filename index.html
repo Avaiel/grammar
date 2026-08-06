@@ -284,6 +284,17 @@
     color: var(--ink-soft);
     margin-bottom: 8px;
   }
+  .sp-dict-source.sub {
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px dotted var(--paper-line);
+  }
+  .sp-dict-pinyin {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--pos-verb);
+    margin-bottom: 6px;
+  }
   .sp-dict-phonetic {
     font-family: var(--font-mono);
     font-size: 12.5px;
@@ -476,6 +487,12 @@
     <span class="sp-key-hint">在 Google AI Studio 免费获取</span>
   </div>
 
+  <div class="sp-key-row" id="sp-mw-key-row">
+    <label for="sp-mw-key">M-W Key</label>
+    <input class="sp-key-input" id="sp-mw-key" type="password" placeholder="可选：粘贴 Merriam-Webster API Key，解锁更权威的英英释义" />
+    <span class="sp-key-hint">在 dictionaryapi.com 免费获取</span>
+  </div>
+
   <div class="sp-input-row">
     <input class="sp-input" id="sp-input" type="text"
       placeholder="e.g. Although she was tired, she finished the translation before the deadline." />
@@ -529,6 +546,15 @@
   const $examples = document.getElementById('sp-examples');
   const $keyRow = document.getElementById('sp-key-row');
   const $key = document.getElementById('sp-key');
+  const $mwKey = document.getElementById('sp-mw-key');
+
+  try {
+    const savedMw = localStorage.getItem('sp_mw_key');
+    if (savedMw) $mwKey.value = savedMw;
+  } catch (e) { /* 预览环境不支持本地存储，忽略即可 */ }
+  $mwKey.addEventListener('change', () => {
+    try { localStorage.setItem('sp_mw_key', $mwKey.value.trim()); } catch (e) { /* 忽略 */ }
+  });
 
   if (GEMINI_API_KEY_HARDCODED) {
     $keyRow.style.display = 'none';
@@ -876,13 +902,42 @@
     });
   }
 
-  // 免费词典 API（api.dictionaryapi.dev，数据主要来自 Wiktionary），
-  // 不是牛津/柯林斯——那两家的数据是付费授权的，个人小工具拿不到。
-  // 这里给的是可信的开源词典释义，外加按需查询的"网络/口语用法"（由模型生成，会标注清楚来源）。
+  // 词典策略：
+  // - 中文词：本地 CC-CEDICT（cedict.json，随页面一起部署，不联网查询，需要你把文件放在同目录）
+  // - 英文词：免费 Free Dictionary API（数据主要来自 Wiktionary）+ 可选的 Merriam-Webster（更权威，需要你自己申请 Key）
+  // 牛津 / 柯林斯的数据是付费授权的，个人小工具拿不到，所以没有接入。
   const dictCache = {};
+  const CJK_RE = /[\u4e00-\u9fff]/;
+  let cedictData = null, cedictLoading = null;
+
+  function loadCedict() {
+    if (cedictData) return Promise.resolve(cedictData);
+    if (cedictLoading) return cedictLoading;
+    cedictLoading = fetch('./cedict.json')
+      .then(res => { if (!res.ok) throw new Error('cedict.json 未找到'); return res.json(); })
+      .then(data => { cedictData = data; return data; })
+      .catch(err => { cedictData = false; throw err; });
+    return cedictLoading;
+  }
+
   async function loadDictionaryEntry(word) {
     const $section = document.getElementById('sp-dict-section');
     if (!$section) return;
+
+    if (CJK_RE.test(word)) {
+      $section.innerHTML = '<div class="sp-dict-loading">加载本地词典中…</div>';
+      try {
+        const dict = await loadCedict();
+        renderCedictSection($section, dict, word);
+      } catch (err) {
+        $section.innerHTML =
+          '<div class="sp-dict-empty">没找到 cedict.json——把它和这个网页放在同一个文件夹里就能用本地中文词典了</div>' +
+          `<button class="sp-web-btn" id="sp-web-btn">查网络 / 口语释义</button><div id="sp-web-note"></div>`;
+        document.getElementById('sp-web-btn').onclick = () => loadWebUsage(word);
+      }
+      return;
+    }
+
     const key = word.toLowerCase().replace(/[^a-z'-]/g, '');
     if (!key) { $section.innerHTML = ''; return; }
 
@@ -903,6 +958,30 @@
       dictCache[key] = null;
       renderDictSection($section, null, word);
     }
+  }
+
+  function renderCedictSection($section, dict, word) {
+    let html = '<div class="sp-dict-source">本地词典 · CC-CEDICT</div>';
+    let entries = (dict.words && dict.words[word]) || null;
+    if (!entries) {
+      const simp = dict.trad && dict.trad[word];
+      if (simp) entries = dict.words[simp];
+    }
+
+    if (entries && entries.length) {
+      entries.slice(0, 4).forEach(e => {
+        html += `<div class="sp-dict-pinyin">${escapeHtml(e.p || '')}${e.t ? ` · 繁体 ${escapeHtml(e.t)}` : ''}</div>`;
+        (e.d || []).slice(0, 5).forEach(def => {
+          html += `<div class="sp-dict-def">${escapeHtml(def)}</div>`;
+        });
+      });
+    } else {
+      html += '<div class="sp-dict-empty">CC-CEDICT 未收录（可能是专有名词或较新的词）</div>';
+    }
+
+    html += `<button class="sp-web-btn" id="sp-web-btn">查网络 / 口语释义</button><div id="sp-web-note"></div>`;
+    $section.innerHTML = html;
+    document.getElementById('sp-web-btn').onclick = () => loadWebUsage(word);
   }
 
   function renderDictSection($section, entries, word) {
@@ -928,6 +1007,41 @@
     $section.innerHTML = html;
 
     document.getElementById('sp-web-btn').onclick = () => loadWebUsage(word);
+
+    const mwKey = $mwKey.value.trim();
+    if (mwKey) loadMerriamWebster($section, word, mwKey);
+  }
+
+  async function loadMerriamWebster($section, word, mwKey) {
+    const holder = document.createElement('div');
+    holder.className = 'sp-dict-loading';
+    holder.textContent = 'Merriam-Webster 查询中…';
+    holder.id = 'sp-mw-holder';
+    $section.insertBefore(holder, $section.querySelector('.sp-web-btn'));
+
+    try {
+      const res = await fetch(
+        'https://www.dictionaryapi.com/api/v3/references/collegiate/json/' +
+        encodeURIComponent(word) + '?key=' + encodeURIComponent(mwKey)
+      );
+      const data = await res.json();
+      const valid = Array.isArray(data) ? data.filter(x => x && typeof x === 'object' && x.shortdef) : [];
+
+      let html = '<div class="sp-dict-source sub">Merriam-Webster</div>';
+      if (valid.length) {
+        valid.slice(0, 3).forEach(e => {
+          html += `<div class="sp-dict-pos">${escapeHtml(e.fl || '')}</div>`;
+          (e.shortdef || []).slice(0, 3).forEach(d => {
+            html += `<div class="sp-dict-def">${escapeHtml(d)}</div>`;
+          });
+        });
+      } else {
+        html += '<div class="sp-dict-empty">Merriam-Webster 未收录，或 Key 无效</div>';
+      }
+      holder.outerHTML = html;
+    } catch (err) {
+      holder.outerHTML = '<div class="sp-dict-source sub">Merriam-Webster</div><div class="sp-dict-empty">查询失败</div>';
+    }
   }
 
   async function loadWebUsage(word) {
